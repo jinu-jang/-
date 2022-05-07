@@ -5,8 +5,7 @@
 # include <assert.h>
 
 # include "heap.h"
-
-class character_t;
+# include "character.h"
 
 #define malloc(size) ({          \
   void *_tmp;                    \
@@ -41,6 +40,7 @@ typedef int16_t pair_t[num_dims];
 #define WORLD_SIZE         401
 #define MIN_TRAINERS       7   
 #define ADD_TRAINER_PROB   50
+#define ENCOUNTER_PROB     10
 
 #define mappair(pair) (m->map[pair[dim_y]][pair[dim_x]])
 #define mapxy(x, y) (m->map[y][x])
@@ -61,43 +61,80 @@ typedef enum __attribute__ ((__packed__)) terrain_type {
   num_terrain_types
 } terrain_type_t;
 
-class map_t {
-  public:
+
+typedef enum __attribute__ ((__packed__)) movement_type {
+  move_hiker,
+  move_rival,
+  move_pace,
+  move_wander,
+  move_sentry,
+  move_walk,
+  move_pc,
+  num_movement_types
+} movement_type_t;
+
+typedef enum __attribute__ ((__packed__)) character_type {
+  char_pc,
+  char_hiker,
+  char_rival,
+  char_other,
+  num_character_types
+} character_type_t;
+
+class Character;
+
+class Map {
+ public:
   terrain_type_t map[MAP_Y][MAP_X];
   uint8_t height[MAP_Y][MAP_X];
-  character_t *cmap[MAP_Y][MAP_X];
+  Character *cmap[MAP_Y][MAP_X];
   heap_t turn;
   int32_t num_trainers;
   int8_t n, s, e, w;
 };
 
-class npc_t;
-class pc_t;
 /* Here instead of character.h to abvoid including character.h */
-class character_t {
-  public:
-  npc_t *npc;
-  pc_t *pc;
+class Character {
+ public:
   pair_t pos;
   char symbol;
   int next_turn;
+
+  virtual ~Character() {}
 };
 
-typedef struct world {
-  map_t *world[WORLD_SIZE][WORLD_SIZE];
+class Pc : public Character {
+ public:
+};
+
+class Npc : public Character {
+ public:
+  character_type_t ctype;
+  movement_type_t mtype;
+  int defeated;
+  pair_t dir;
+};
+
+class World {
+ public:
+  Map *world[WORLD_SIZE][WORLD_SIZE];
   pair_t cur_idx;
-  map_t *cur_map;
+  Map *cur_map;
   /* Please distance maps in world, not map, since *
    * we only need one pair at any given time.      */
   int hiker_dist[MAP_Y][MAP_X];
   int rival_dist[MAP_Y][MAP_X];
-  character_t pc;
+  Pc pc;
   int quit;
-} world_t;
+};
+
+extern const char *char_type_name[num_character_types];
+extern int32_t move_cost[num_character_types][num_terrain_types];
+extern void (*move_func[num_movement_types])(Character *, pair_t);
 
 /* Even unallocated, a WORLD_SIZE x WORLD_SIZE array of pointers is a very *
  * large thing to put on the stack.  To avoid that, world is a global.     */
-extern world_t world;
+extern World world;
 
 extern pair_t all_dirs[8];
 

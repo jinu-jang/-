@@ -1,6 +1,0 @@
-4/2/22
-Took code from 1.06
-Generated pokemon and Spawn rates.
-Shiny status
-Gender
-IVs
