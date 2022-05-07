@@ -1,6 +1,8 @@
 #ifndef DB_PARSE_H
 # define DB_PARSE_H
 
+#include <vector>
+
 struct pokemon_db {
   int id;
   char identifier[30];
@@ -10,16 +12,6 @@ struct pokemon_db {
   int base_experience;
   int order;
   int is_default;
-  int level;
-  bool shiny;
-  int gender;
-
-  int hp;
-  int attack;
-  int defense;
-  int sp_atk;
-  int sp_def;
-  int speed;
 };
 
 struct move_db {
@@ -49,6 +41,11 @@ struct pokemon_move_db {
   int order;
 };
 
+struct levelup_move {
+  int level;
+  int move;
+};
+
 struct pokemon_species_db {
   int id;
   char identifier[30];
@@ -70,6 +67,11 @@ struct pokemon_species_db {
   int is_mythical;
   int order;
   int conquest_order;
+
+  levelup_move *levelup_moves;
+  unsigned num_levelup_moves;
+  int base_stat[6];
+  ~pokemon_species_db();
 };
 
 struct experience_db {
@@ -78,15 +80,7 @@ struct experience_db {
   int experience;
 };
 
-struct stat_db {
-  int id;
-  int damage_class_id;
-  char identifier[30];
-  int is_battle_only;
-  int game_index;
-};
-
-struct pokemon_stat_db{
+struct pokemon_stats_db {
   int pokemon_id;
   int stat_id;
   int base_stat;
@@ -99,8 +93,7 @@ extern char *types[19];
 extern move_db moves[845];
 extern pokemon_species_db species[899];
 extern experience_db experience[601];
-extern stat_db stats[9];
-extern pokemon_stat_db pokemon_stats[6553];
+extern pokemon_stats_db pokemon_stats[6553];
 
 void db_parse(bool print);
 
