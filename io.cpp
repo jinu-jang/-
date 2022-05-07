@@ -7,6 +7,7 @@
 #include "io.h"
 #include "character.h"
 #include "poke327.h"
+#include "pokemon.h"
 
 typedef struct io_message {
   /* Will print " --more-- " at end of line when another message follows. *
@@ -51,7 +52,7 @@ void io_queue_message(const char *format, ...)
   io_message_t *tmp;
   va_list ap;
 
-  if (!(tmp = (io_message_t*)malloc(sizeof (*tmp)))) {
+  if (!(tmp = (io_message_t *) malloc(sizeof (*tmp)))) {
     perror("malloc");
     exit(1);
   }
@@ -102,19 +103,19 @@ static void io_print_message_queue(uint32_t y, uint32_t x)
  **************************************************************************/
 static int compare_trainer_distance(const void *v1, const void *v2)
 {
-  const character_t *const *c1 = (const character_t * const*)v1;
-  const character_t *const *c2 = (const character_t * const*)v2;
+  const Character *const *c1 = (const Character *const *) v1;
+  const Character *const *c2 = (const Character *const *) v2;
 
   return (world.rival_dist[(*c1)->pos[dim_y]][(*c1)->pos[dim_x]] -
           world.rival_dist[(*c2)->pos[dim_y]][(*c2)->pos[dim_x]]);
 }
 
-static character_t *io_nearest_visible_trainer()
+static Character *io_nearest_visible_trainer()
 {
-  character_t **c, *n;
+  Character **c, *n;
   uint32_t x, y, count;
 
-  c = (character_t**)malloc(world.cur_map->num_trainers * sizeof (*c));
+  c = (Character **) malloc(world.cur_map->num_trainers * sizeof (*c));
 
   /* Get a linear list of trainers */
   for (count = 0, y = 1; y < MAP_Y - 1; y++) {
@@ -139,7 +140,7 @@ static character_t *io_nearest_visible_trainer()
 void io_display()
 {
   uint32_t y, x;
-  character_t *c;
+  Character *c;
 
   clear();
   for (y = 0; y < MAP_Y; y++) {
@@ -273,23 +274,23 @@ static void io_scroll_trainer_list(char (*s)[40], uint32_t count)
   }
 }
 
-static void io_list_trainers_display(character_t **c,
+static void io_list_trainers_display(Npc **c,
                                      uint32_t count)
 {
   uint32_t i;
   char (*s)[40]; /* pointer to array of 40 char */
 
-  s = (char (*)[40])malloc(count * sizeof (*s));
+  s = (char (*)[40]) malloc(count * sizeof (*s));
 
   mvprintw(3, 19, " %-40s ", "");
   /* Borrow the first element of our array for this string: */
   snprintf(s[0], 40, "You know of %d trainers:", count);
-  mvprintw(4, 19, " %-40s ", s);
+  mvprintw(4, 19, " %-40s ", s[0]);
   mvprintw(5, 19, " %-40s ", "");
 
   for (i = 0; i < count; i++) {
     snprintf(s[i], 40, "%16s %c: %2d %s by %2d %s",
-             char_type_name[c[i]->npc->ctype],
+             char_type_name[c[i]->ctype],
              c[i]->symbol,
              abs(c[i]->pos[dim_y] - world.pc.pos[dim_y]),
              ((c[i]->pos[dim_y] - world.pc.pos[dim_y]) <= 0 ?
@@ -321,10 +322,10 @@ static void io_list_trainers_display(character_t **c,
 
 static void io_list_trainers()
 {
-  character_t **c;
+  Character **c;
   uint32_t x, y, count;
 
-  c = (character_t**)malloc(world.cur_map->num_trainers * sizeof (*c));
+  c = (Character **) malloc(world.cur_map->num_trainers * sizeof (*c));
 
   /* Get a linear list of trainers */
   for (count = 0, y = 1; y < MAP_Y - 1; y++) {
@@ -340,7 +341,7 @@ static void io_list_trainers()
   qsort(c, count, sizeof (*c), compare_trainer_distance);
 
   /* Display it */
-  io_list_trainers_display(c, count);
+  io_list_trainers_display((Npc **)(c), count);
   free(c);
 
   /* And redraw the map */
@@ -361,23 +362,21 @@ void io_pokemon_center()
   getch();
 }
 
-void io_battle(character_t *aggressor, character_t *defender)
+void io_battle(Character *aggressor, Character *defender)
 {
-  character_t *npc;
+  Npc *npc;
 
   io_display();
   mvprintw(0, 0, "Aww, how'd you get so strong?  You and your pokemon must share a special bond!");
   refresh();
   getch();
-  if (aggressor->pc) {
-    npc = defender;
-  } else {
-    npc = aggressor;
+  if (!(npc = dynamic_cast<Npc *>(aggressor))) {
+    npc = dynamic_cast<Npc *>(defender);
   }
-
-  npc->npc->defeated = 1;
-  if (npc->npc->ctype == char_hiker || npc->npc->ctype == char_rival) {
-    npc->npc->mtype = move_wander;
+  
+  npc->defeated = 1;
+  if (npc->ctype == char_hiker || npc->ctype == char_rival) {
+    npc->mtype = move_wander;
   }
 }
 
@@ -438,11 +437,12 @@ uint32_t move_pc_dir(uint32_t input, pair_t dest)
   }
 
   if (world.cur_map->cmap[dest[dim_y]][dest[dim_x]]) {
-    if (world.cur_map->cmap[dest[dim_y]][dest[dim_x]]->npc &&
-        world.cur_map->cmap[dest[dim_y]][dest[dim_x]]->npc->defeated) {
+    if (dynamic_cast<Npc *>(world.cur_map->cmap[dest[dim_y]][dest[dim_x]]) &&
+        ((Npc *) world.cur_map->cmap[dest[dim_y]][dest[dim_x]])->defeated) {
       // Some kind of greeting here would be nice
       return 1;
-    } else if (world.cur_map->cmap[dest[dim_y]][dest[dim_x]]->npc) {
+    } else if (dynamic_cast<Npc *>
+               (world.cur_map->cmap[dest[dim_y]][dest[dim_x]])) {
       io_battle(&world.pc, world.cur_map->cmap[dest[dim_y]][dest[dim_x]]);
       // Not actually moving, so set dest back to PC position
       dest[dim_x] = world.pc.pos[dim_x];
@@ -468,10 +468,10 @@ void io_teleport_world(pair_t dest)
   refresh();
   echo();
   curs_set(1);
-  mvscanw(0, 21, "%d", &x);
+  mvscanw(0, 21, (char *) "%d", &x);
   mvprintw(0, 0, "Enter y [-200, 200]:          ");
   refresh();
-  mvscanw(0, 21, "%d", &y);
+  mvscanw(0, 21, (char *) "%d", &y);
   refresh();
   noecho();
   curs_set(0);
@@ -497,6 +497,50 @@ void io_teleport_world(pair_t dest)
 
   new_map(1);
   io_teleport_pc(dest);
+}
+
+void io_encounter_pokemon()
+{
+  Pokemon *p;
+  
+  int md = (abs(world.cur_idx[dim_x] - (WORLD_SIZE / 2)) +
+            abs(world.cur_idx[dim_x] - (WORLD_SIZE / 2)));
+  int minl, maxl;
+  
+  if (md <= 200) {
+    minl = 1;
+    maxl = md / 2;
+  } else {
+    minl = (md - 200) / 2;
+    maxl = 100;
+  }
+  if (minl < 1) {
+    minl = 1;
+  }
+  if (minl > 100) {
+    minl = 100;
+  }
+  if (maxl < 1) {
+    maxl = 1;
+  }
+  if (maxl > 100) {
+    maxl = 100;
+  }
+
+  p = new Pokemon(rand() % (maxl - minl + 1) + minl);
+
+  //  std::cerr << *p << std::endl << std::endl;
+
+  io_queue_message("%s%s%s: HP:%d ATK:%d DEF:%d SPATK:%d SPDEF:%d SPEED:%d %s",
+                   p->is_shiny() ? "*" : "", p->get_species(),
+                   p->is_shiny() ? "*" : "", p->get_hp(), p->get_atk(),
+                   p->get_def(), p->get_spatk(), p->get_spdef(),
+                   p->get_speed(), p->get_gender_string());
+  io_queue_message("%s's moves: %s %s", p->get_species(),
+                   p->get_move(0), p->get_move(1));
+
+  // Later on, don't delete if captured
+  delete p;
 }
 
 void io_handle_input(pair_t dest)

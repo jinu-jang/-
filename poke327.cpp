@@ -15,6 +15,24 @@
 #include "io.h"
 #include "db_parse.h"
 
+typedef struct queue_node {
+  int x, y;
+  struct queue_node *next;
+} queue_node_t;
+
+World world;
+
+pair_t all_dirs[8] = {
+  { -1, -1 },
+  { -1,  0 },
+  { -1,  1 },
+  {  0, -1 },
+  {  0,  1 },
+  {  1, -1 },
+  {  1,  0 },
+  {  1,  1 },
+};
+
 static int32_t path_cmp(const void *key, const void *with) {
   return ((path_t *) key)->cost - ((path_t *) with)->cost;
 }
@@ -363,7 +381,18 @@ static int smooth_height(Map *m)
     }
   }
 
- 
+  /*
+  out = fopen("diffused.pgm", "w");
+  fprintf(out, "P5\n%u %u\n255\n", MAP_X, MAP_Y);
+  fwrite(&height, sizeof (height), 1, out);
+  fclose(out);
+
+  out = fopen("smoothed.pgm", "w");
+  fprintf(out, "P5\n%u %u\n255\n", MAP_X, MAP_Y);
+  fwrite(&m->height, sizeof (m->height), 1, out);
+  fclose(out);
+  */
+
   return 0;
 }
 
@@ -469,6 +498,14 @@ static int map_terrain(Map *m, int8_t n, int8_t s, int8_t e, int8_t w)
     tail->y = y;
   }
 
+  /*
+  out = fopen("seeded.pgm", "w");
+  fprintf(out, "P5\n%u %u\n255\n", MAP_X, MAP_Y);
+  fwrite(&m->map, sizeof (m->map), 1, out);
+  fclose(out);
+  */
+
+  /* Diffuse the vaules to fill the space */
   while (head) {
     x = head->x;
     y = head->y;
@@ -555,6 +592,13 @@ static int map_terrain(Map *m, int8_t n, int8_t s, int8_t e, int8_t w)
     head = head->next;
     free(tmp);
   }
+
+  /*
+  out = fopen("diffused.pgm", "w");
+  fprintf(out, "P5\n%u %u\n255\n", MAP_X, MAP_Y);
+  fwrite(&m->map, sizeof (m->map), 1, out);
+  fclose(out);
+  */
   
   for (y = 0; y < MAP_Y; y++) {
     for (x = 0; x < MAP_X; x++) {
@@ -890,6 +934,58 @@ int new_map(int teleport)
   return 0;
 }
 
+/*
+static void print_map()
+{
+  int x, y;
+  int default_reached = 0;
+
+  printf("\n\n\n");
+
+  for (y = 0; y < MAP_Y; y++) {
+    for (x = 0; x < MAP_X; x++) {
+      if (world.cur_map->cmap[y][x]) {
+        putchar(world.cur_map->cmap[y][x]->symbol);
+      } else {
+        switch (world.cur_map->map[y][x]) {
+        case ter_boulder:
+        case ter_mountain:
+          putchar('%');
+          break;
+        case ter_tree:
+        case ter_forest:
+          putchar('^');
+          break;
+        case ter_path:
+          putchar('#');
+          break;
+        case ter_mart:
+          putchar('M');
+          break;
+        case ter_center:
+          putchar('C');
+          break;
+        case ter_grass:
+          putchar(':');
+          break;
+        case ter_clearing:
+          putchar('.');
+          break;
+        default:
+          default_reached = 1;
+          break;
+        }
+      }
+    }
+    putchar('\n');
+  }
+
+  if (default_reached) {
+    fprintf(stderr, "Default reached in %s\n", __FUNCTION__);
+  }
+}
+*/
+
 // The world is global because of its size, so init_world is parameterless
 void init_world()
 {
@@ -962,121 +1058,6 @@ void leave_map(pair_t d)
   new_map(0);
 }
 
-std::vector<int> get_moves(int species_id){
-  int i;
-  std::vector<int> moveset;
-  
-  for(i = 0; i<528239; i++){
-    pokemon_move_db m = pokemon_moves[i];
-    if((m.version_group_id = 19) && (m.pokemon_id == species_id) && (m.pokemon_move_method_id == 1)){
-      moveset.push_back(m.move_id);
-    }
-  }
-  return moveset;
-
-}
-
-void poke_check(){
-  int r = rand_range(1,10);
-  int dist = (abs(world.cur_idx[dim_x] - (WORLD_SIZE/2)) + abs(world.cur_idx[dim_y] - (WORLD_SIZE/2)));
-  int min_lvl = 0;
-  int max_lvl = 1;
-  bool isShiny = false;
-  int spawn = rand_range(1, 1092);
-
-  pokemon_db p = pokemon[spawn];
-  if(r == 1){ 
-    if(dist <= 200){
-      min_lvl = 1;
-      if(dist > 2){
-        max_lvl = dist/2;
-      }
-    } else{
-      min_lvl = (dist-200)/2;
-      max_lvl = 100;
-    }
-    int level = rand_range(min_lvl, max_lvl);
-    int gender = rand_range(0,1); 
-    if(rand() % 8192 == 0){
-     isShiny = true;
-    }
-    p.gender = gender;
-    p.level = level;
-    p.shiny = isShiny;
-
-    std::vector<int> possible_moves = get_moves(p.species_id);
-
-    int num_moves = possible_moves.size();
-    int move_1 = -1;
-    int move_2 = -1;
-    int hp = rand_range(0,15);
-    int attack = rand_range(0,15);
-    int defence = rand_range(0,15);
-    int atk = rand_range(0,15);
-    int def = rand_range(0,15);
-    int spd = rand_range(0,15);
-    
-    if(num_moves == 1){
-      move_1 = possible_moves[0];
-    } else if(num_moves > 1){
-      move_1 = possible_moves[rand_range(0, num_moves)];
-      do{
-        move_2 = possible_moves[rand_range(0, num_moves)];
-      } while(move_1 == move_2);
-    }
-
-    
-
-    int starting_index = 0;
-    while(pokemon_stats[starting_index].pokemon_id != p.id){
-      starting_index++;
-    }
-    p.hp = pokemon_stats[starting_index].base_stat + hp;
-    p.attack = pokemon_stats[starting_index+1].base_stat +attck;
-    p.defense = pokemon_stats[starting_index+2].base_stat + defence;
-    p.sp_atk = pokemon_stats[starting_index+3].base_stat + atk;
-    p.sp_def = pokemon_stats[starting_index+4].base_stat + def;
-    p.speed = pokemon_stats[starting_index+5].base_stat + spd;
-
-
-    clear();
-    refresh();
-    mvprintw(0, 0, "A wild %s Appeared! (ID %d)", p.identifier, p.id);
-    mvprintw(1 ,0, "Level: %d", level);
-    if(gender == 0){
-      mvprintw(2 ,0, "Gender: Male");
-    } else{
-      mvprintw(2 ,0, "Gender: Female");
-    }
-    
-    if(move_1 != -1)
-      mvprintw(3 ,0, "Move 1: %s", moves[move_1].identifier);
-    if(move_2 != -1)
-      mvprintw(4 ,0, "Move 2: %s", moves[move_2].identifier);
-
-    mvprintw(6 ,0, "Stats:");
-    mvprintw(7 ,0, "HP: %d", p.hp);
-    mvprintw(8 ,0, "Attack: %d", p.attack);
-    mvprintw(9 ,0, "Defense: %d", p.defense);
-    mvprintw(10 ,0, "Special Attack: %d", p.sp_atk);
-    mvprintw(11 ,0, "Special Defense: %d", p.sp_def);
-    mvprintw(12 ,0, "Speed: %d", p.speed);
-
-    if isShiny){
-      mvprintw(13 ,0, "Shiny: YES!");
-    } else{
-      mvprintw(13 ,0, "Shiny: No :(");
-    }
-
-    mvprintw(20 ,0, "Press Any Key To Exit");
-    
-    refresh();
-    getch();
-    io_display();
-  }
-
-}
-
 void game_loop()
 {
   Character *c;
@@ -1101,21 +1082,21 @@ void game_loop()
     world.cur_map->cmap[d[dim_y]][d[dim_x]] = c;
 
     if (p) {
+      // Performance bug - pathfinding runs twice after generating a new map
       pathfind(world.cur_map);
     }
 
     c->next_turn += move_cost[n ? n->ctype : char_pc]
                              [world.cur_map->map[d[dim_y]][d[dim_x]]];
 
-    c->pos[dim_y] = d[dim_y];
-    c->pos[dim_x] = d[dim_x];
-
-    if(p){
-      if(world.cur_map->map[c->pos[dim_y]][c->pos[dim_x]] == ter_grass){
-        poke_check();
-      }
+    if (p && (c->pos[dim_y] != d[dim_y] || c->pos[dim_x] != d[dim_x]) &&
+        (world.cur_map->map[d[dim_y]][d[dim_x]] == ter_grass) &&
+        (rand() % 100 < ENCOUNTER_PROB)) {
+      io_encounter_pokemon();
     }
     
+    c->pos[dim_y] = d[dim_y];
+    c->pos[dim_x] = d[dim_x];
 
     heap_insert(&world.cur_map->turn, c);
   }
@@ -1125,7 +1106,8 @@ int main(int argc, char *argv[])
 {
   struct timeval tv;
   uint32_t seed;
-  db_parse(false);
+  //  char c;
+  //  int x, y;
 
   if (argc == 2) {
     seed = atoi(argv[1]);
@@ -1138,9 +1120,78 @@ int main(int argc, char *argv[])
   srand(seed);
 
   io_init_terminal();
+  
+  db_parse(false);
+
   init_world();
+
+  /* print_hiker_dist(); */
+  
+  /*
+  do {
+    print_map();  
+    printf("Current position is %d%cx%d%c (%d,%d).  "
+           "Enter command: ",
+           abs(world.cur_idx[dim_x] - (WORLD_SIZE / 2)),
+           world.cur_idx[dim_x] - (WORLD_SIZE / 2) >= 0 ? 'E' : 'W',
+           abs(world.cur_idx[dim_y] - (WORLD_SIZE / 2)),
+           world.cur_idx[dim_y] - (WORLD_SIZE / 2) <= 0 ? 'N' : 'S',
+           world.cur_idx[dim_x] - (WORLD_SIZE / 2),
+           world.cur_idx[dim_y] - (WORLD_SIZE / 2));
+    scanf(" %c", &c);
+    switch (c) {
+    case 'n':
+      if (world.cur_idx[dim_y]) {
+        world.cur_idx[dim_y]--;
+        new_map();
+      }
+      break;
+    case 's':
+      if (world.cur_idx[dim_y] < WORLD_SIZE - 1) {
+        world.cur_idx[dim_y]++;
+        new_map();
+      }
+      break;
+    case 'e':
+      if (world.cur_idx[dim_x] < WORLD_SIZE - 1) {
+        world.cur_idx[dim_x]++;
+        new_map();
+      }
+      break;
+    case 'w':
+      if (world.cur_idx[dim_x]) {
+        world.cur_idx[dim_x]--;
+        new_map();
+      }
+      break;
+     case 'q':
+      break;
+    case 'f':
+      scanf(" %d %d", &x, &y);
+      if (x >= -(WORLD_SIZE / 2) && x <= WORLD_SIZE / 2 &&
+          y >= -(WORLD_SIZE / 2) && y <= WORLD_SIZE / 2) {
+        world.cur_idx[dim_x] = x + (WORLD_SIZE / 2);
+        world.cur_idx[dim_y] = y + (WORLD_SIZE / 2);
+        new_map();
+      }
+      break;
+    case '?':
+    case 'h':
+      printf("Move with 'e'ast, 'w'est, 'n'orth, 's'outh or 'f'ly x y.\n"
+             "Quit with 'q'.  '?' and 'h' print this help message.\n");
+      break;
+    default:
+      fprintf(stderr, "%c: Invalid input.  Enter '?' for help.\n", c);
+      break;
+    }
+  } while (c != 'q');
+
+  */
+
   game_loop();
+  
   delete_world();
+
   io_reset_terminal();
   
   return 0;
